@@ -1,0 +1,12 @@
+{
+  "name": "file-storage-dual-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dual-site file storage with admin panel and public storage site",
+  "main": "server.js",
+  "scripts": {
+    "api": "node server.js api",
+    "admin": "node server.js admin",
+    "storage": "node server.js storage"
+  }
+}

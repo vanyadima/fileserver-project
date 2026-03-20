@@ -1,0 +1,186 @@
+
+:root {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --panel-soft: #fbfcff;
+  --text: #1d2433;
+  --muted: #6e7a96;
+  --brand: #3346ff;
+  --brand-2: #e8ecf8;
+  --nav: #0f172a;
+  --nav-soft: #18243f;
+  --nav-active: #3346ff;
+  --border: #d2d7e6;
+  --shadow: 0 12px 30px rgba(20, 30, 60, 0.08);
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+button, input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+input, select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+textarea { min-height: 84px; resize: vertical; }
+label { display: inline-block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+.hidden { display: none !important; }
+.visible { display: block; }
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  background: var(--nav);
+  color: #f8fafc;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sidebar h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+.muted { color: #93a4c3; }
+.small { font-size: 13px; }
+.nav-list { display: grid; gap: 10px; }
+.nav-link {
+  display: block;
+  text-align: left;
+  background: var(--nav-soft);
+  color: #e5ecff;
+  padding: 12px 14px;
+  border-radius: 14px;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.nav-link:hover { transform: translateY(-1px); }
+.nav-link.active { background: var(--nav-active); }
+.sidebar-card {
+  margin-top: auto;
+  background: #111c33;
+  padding: 14px;
+  border-radius: 18px;
+}
+.auth-box { display: grid; gap: 10px; }
+.status { padding: 8px 10px; border-radius: 999px; font-size: 13px; }
+.status.warning { background: #3b2f1a; color: #ffd89c; }
+.status.ok { background: #17331f; color: #a8f0b7; }
+.content {
+  padding: 24px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.page-header h2, .card h3, .card h4 { margin: 0 0 10px; }
+.card {
+  background: var(--panel);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.row.right { justify-content: flex-end; }
+.row.space-between { justify-content: space-between; }
+.primary { background: var(--brand); color: white; }
+.secondary { background: var(--brand-2); color: var(--text); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  background: #edf1fb;
+  padding: 8px 10px;
+  border-radius: 999px;
+}
+.chip button {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #d7def4;
+}
+.notice {
+  padding: 12px;
+  border-radius: 16px;
+  background: #eef4ff;
+  color: #27407a;
+}
+.filter-item {
+  border: 1px solid #e2e8f5;
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--panel-soft);
+}
+.filter-head {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.filter-options { margin-top: 10px; }
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.checkbox-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f3f6ff;
+  padding: 8px 10px;
+  border-radius: 999px;
+}
+.check input { width: auto; margin: 0; }
+.file-list { display: grid; gap: 12px; }
+.file-item {
+  border: 1px solid #e4e9f4;
+  border-radius: 18px;
+  padding: 14px;
+  background: #fcfdff;
+}
+.file-item .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #55607a;
+  font-size: 13px;
+  margin-top: 6px;
+}
+.file-item .actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+@media (max-width: 1024px) {
+  .app-shell, .grid-2, .split { grid-template-columns: 1fr; }
+  .sidebar { min-height: auto; }
+  .page-header { align-items: flex-start; flex-direction: column; }
+}

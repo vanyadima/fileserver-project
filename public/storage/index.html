@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Файл-хранилище</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <script src="/config.js"></script>
+  <div class="storage-page">
+    <div class="storage-frame">
+      <header class="topbar">
+        <div>
+          <h1>Файл-хранилище</h1>
+          <p class="muted">Поиск по имени и тегам, фильтры из админки, скачивание оригинальных файлов.</p>
+        </div>
+      </header>
+
+      <div class="search-box card">
+        <div class="grid-2">
+          <div>
+            <label>Поиск</label>
+            <input id="searchInput" type="text" placeholder="Поиск по файлам и тегам" />
+          </div>
+          <div>
+            <label>Папка</label>
+            <select id="folderSelect">
+              <option value="">Все папки</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="filtersArea" class="filters-area"></div>
+
+        <div class="row right">
+          <button id="applyBtn" class="primary">Применить</button>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <aside class="card folder-card">
+          <div class="row space-between">
+            <h3>Папки</h3>
+            <button id="clearFolderBtn" class="secondary">Все</button>
+          </div>
+          <div id="foldersTree" class="folders-tree"></div>
+        </aside>
+
+        <main class="card results-card">
+          <div class="row space-between">
+            <h3>Файлы</h3>
+            <div id="resultCount" class="muted">0</div>
+          </div>
+          <div id="results"></div>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

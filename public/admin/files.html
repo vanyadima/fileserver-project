@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ-панель — Удаление файлов</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body data-page="files">
+  <script src="/config.js"></script>
+  <div class="app-shell admin-shell">
+    <aside class="sidebar">
+      <div>
+        <h1>Админ-панель</h1>
+        <p class="muted">Фильтры, теги, загрузка и удаление файлов.</p>
+      </div>
+      <nav class="nav-list">
+        <a class="nav-link " data-page="filters" href="/index.html">Редактор фильтров</a>
+        <a class="nav-link " data-page="upload" href="/upload.html">Загрузка файлов</a>
+        <a class="nav-link active" data-page="files" href="/files.html">Удаление файлов</a>
+      </nav>
+      <div class="sidebar-card">
+        <div class="auth-box">
+          <div id="authStatus" class="status warning">Не авторизован</div>
+          <input id="passwordInput" type="password" placeholder="Пароль администратора" />
+          <button id="loginBtn" class="primary">Войти</button>
+          <button id="logoutBtn" class="secondary hidden">Выйти</button>
+        </div>
+      </div>
+    </aside>
+    <main class="content">
+      <header class="page-header">
+        <div>
+          <h2 id="pageTitle">Удаление файлов</h2>
+          <p id="pageHint" class="muted">Здесь можно редактировать теги файлов и удалять их.</p>
+        </div>
+        <button id="reloadBtn" class="secondary">Обновить</button>
+      </header>
+      
+<section class="card">
+  <div class="row space-between">
+    <h3>Файлы</h3>
+    <button id="refreshFilesBtn" class="secondary">Обновить список</button>
+  </div>
+  <div id="filesList" class="file-list"></div>
+</section>
+
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

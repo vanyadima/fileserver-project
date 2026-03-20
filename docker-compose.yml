@@ -1,0 +1,56 @@
+services:
+  api:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.js", "api"]
+    ports:
+      - "4000:4000"
+    environment:
+      API_PORT: 4000
+      ADMIN_PASSWORD: admin123
+      TOKEN_SECRET: change-this-secret
+      DATA_DIR: /app/data
+      STORAGE_DIR: /app/storage
+    volumes:
+      - ./:/app
+      - ./storage-data:/app/storage
+      - ./data:/app/data
+    restart: unless-stopped
+
+  storage-web:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.js", "storage"]
+    ports:
+      - "3000:3000"
+    environment:
+      API_PORT: 4000
+      STORAGE_PORT: 3000
+      DATA_DIR: /app/data
+      STORAGE_DIR: /app/storage
+    volumes:
+      - ./:/app
+      - ./storage-data:/app/storage
+      - ./data:/app/data
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  admin-web:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.js", "admin"]
+    ports:
+      - "3001:3001"
+    environment:
+      API_PORT: 4000
+      ADMIN_PORT: 3001
+      DATA_DIR: /app/data
+      STORAGE_DIR: /app/storage
+    volumes:
+      - ./:/app
+      - ./storage-data:/app/storage
+      - ./data:/app/data
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,26 @@
+{
+  "adminPasswordHash": "c02d868831607fceffcb8b08328428a932472e25961a2fbdff886931f82ff314",
+  "tags": [
+    "важно",
+    "архив",
+    "проект"
+  ],
+  "filters": [
+    {
+      "id": "category",
+      "label": "Категория",
+      "type": "dropdown",
+      "options": [
+        "Документы",
+        "Фото",
+        "Видео"
+      ]
+    },
+    {
+      "id": "approved",
+      "label": "Согласовано",
+      "type": "checkbox"
+    }
+  ],
+  "files": []
+}
