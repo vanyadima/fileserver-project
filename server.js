@@ -14,6 +14,7 @@ const STORAGE_PORT = Number(process.env.STORAGE_PORT || 3000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const TOKEN_SECRET = process.env.TOKEN_SECRET || 'dev-secret-change-me';
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 250 * 1024 * 1024);
+const MAX_FOLDER_DEPTH = Number(process.env.MAX_FOLDER_DEPTH || 3);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -512,6 +513,9 @@ async function handleApi(req, res) {
       const body = await readBody(req);
       const { fields, files } = parseMultipart(body, boundaryMatch[1]);
       const folder = safeFolder(fields.folder);
+      if (folder && folderDepth(folder) > MAX_FOLDER_DEPTH) {
+        return json(res, 400, { ok: false, error: `Глубина папки не должна быть больше ${MAX_FOLDER_DEPTH} уровней` });
+      }
       const tags = normalizeTags(JSON.parse(fields.tags || '[]'));
       const filterValues = fields.filterValues ? JSON.parse(fields.filterValues) : {};
       const saved = [];

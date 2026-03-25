@@ -17,7 +17,7 @@
         </div>
       </header>
 
-      <div class="search-box card">
+      <form id="searchForm" class="search-box card" novalidate>
         <div class="grid-2">
           <div>
             <label>Поиск</label>
@@ -34,15 +34,16 @@
         <div id="filtersArea" class="filters-area"></div>
 
         <div class="row right">
-          <button id="applyBtn" class="primary">Применить</button>
+          <button id="applyBtn" class="primary" type="submit">Применить</button>
+          <button id="resetBtn" class="secondary" type="button">Сбросить фильтры</button>
         </div>
-      </div>
+      </form>
 
       <div class="content-grid">
         <aside class="card folder-card">
           <div class="row space-between">
             <h3>Папки</h3>
-            <button id="clearFolderBtn" class="secondary">Все</button>
+            <button id="clearFolderBtn" class="secondary" type="button">Все</button>
           </div>
           <div id="foldersTree" class="folders-tree"></div>
         </aside>

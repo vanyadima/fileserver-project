@@ -15,17 +15,17 @@
         <p class="muted">Фильтры, теги, загрузка и удаление файлов.</p>
       </div>
       <nav class="nav-list">
-        <a class="nav-link " data-page="filters" href="/index.html">Редактор фильтров</a>
-        <a class="nav-link " data-page="upload" href="/upload.html">Загрузка файлов</a>
+        <a class="nav-link" data-page="filters" href="/index.html">Редактор фильтров</a>
+        <a class="nav-link" data-page="upload" href="/upload.html">Загрузка файлов</a>
         <a class="nav-link active" data-page="files" href="/files.html">Удаление файлов</a>
       </nav>
       <div class="sidebar-card">
-        <div class="auth-box">
+        <form class="auth-box" id="loginForm" novalidate>
           <div id="authStatus" class="status warning">Не авторизован</div>
           <input id="passwordInput" type="password" placeholder="Пароль администратора" />
-          <button id="loginBtn" class="primary">Войти</button>
-          <button id="logoutBtn" class="secondary hidden">Выйти</button>
-        </div>
+          <button id="loginBtn" class="primary" type="submit">Войти</button>
+          <button id="logoutBtn" class="secondary hidden" type="button">Выйти</button>
+        </form>
       </div>
     </aside>
     <main class="content">
@@ -34,13 +34,13 @@
           <h2 id="pageTitle">Удаление файлов</h2>
           <p id="pageHint" class="muted">Здесь можно редактировать теги файлов и удалять их.</p>
         </div>
-        <button id="reloadBtn" class="secondary">Обновить</button>
+        <button id="reloadBtn" class="secondary" type="button">Обновить</button>
       </header>
       
 <section class="card">
   <div class="row space-between">
     <h3>Файлы</h3>
-    <button id="refreshFilesBtn" class="secondary">Обновить список</button>
+    <button id="refreshFilesBtn" class="secondary" type="button">Обновить список</button>
   </div>
   <div id="filesList" class="file-list"></div>
 </section>

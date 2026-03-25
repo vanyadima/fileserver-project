@@ -184,3 +184,168 @@ label { display: inline-block; margin-bottom: 6px; color: var(--muted); font-siz
   .sidebar { min-height: auto; }
   .page-header { align-items: flex-start; flex-direction: column; }
 }
+
+
+button {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, background-color 0.18s ease;
+}
+button:hover { transform: translateY(-1px); }
+button:active { transform: translateY(1px) scale(0.98); }
+button:focus-visible {
+  outline: 3px solid rgba(51, 70, 255, 0.18);
+  outline-offset: 2px;
+}
+.toast-message {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  background: #0f172a;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.toast-message.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+/* Text wrapping for long names and folders */
+.page-header h2,
+.card h3,
+.card h4,
+.sidebar h1,
+.sidebar p,
+.file-item strong,
+.file-item .meta,
+.file-item .meta span,
+.chip span,
+.notice,
+.muted,
+.nav-link,
+.status,
+input,
+select,
+textarea,
+label,
+.filter-head input,
+.filter-options input,
+.file-item input,
+#uploadFolder {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.file-item,
+.filter-item,
+.card,
+.sidebar-card,
+.nav-link,
+.chip,
+.notice,
+.status {
+  min-width: 0;
+}
+
+.file-item strong {
+  display: block;
+}
+
+.upload-progress {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f3f6ff;
+  border: 1px solid #dbe3f5;
+  margin-top: 12px;
+}
+
+.upload-progress__text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.upload-progress__bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #dce4f7;
+  overflow: hidden;
+}
+
+.upload-progress__bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 0.18s ease;
+}
+
+@media (max-width: 1024px) {
+  .upload-progress__text {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+body { overflow-x: hidden; }
+.app-shell, .content, .card, .sidebar, .file-item, .filter-item, .nav-link, .chip, .status, .notice, .upload-filter-group, .upload-filter-group *, .checkbox-row, .check, .file-list, .file-item .meta { min-width: 0; }
+.file-item strong, .file-item .meta, .file-item .meta span, .chip span, .nav-link, .status, .notice, .file-item input, .filter-head input, .filter-options input, .check span, .upload-filter-group__title, .page-header h2, .card h3, .card h4, .sidebar h1, .sidebar p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.upload-filter-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #f7f9ff;
+  border: 1px solid #e5ebf7;
+  margin-bottom: 12px;
+}
+
+.upload-filter-group__title {
+  font-size: 13px;
+  color: #5b657a;
+  font-weight: 600;
+}
+
+.checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.check {
+  max-width: 100%;
+}
+
+.check span {
+  min-width: 0;
+}
+
+.chip {
+  max-width: 100%;
+}
+
+.chip span {
+  min-width: 0;
+}
+
+.file-item strong {
+  display: block;
+}
+
+.file-item .actions {
+  flex-wrap: wrap;
+}

@@ -16,16 +16,16 @@
       </div>
       <nav class="nav-list">
         <a class="nav-link active" data-page="filters" href="/index.html">Редактор фильтров</a>
-        <a class="nav-link " data-page="upload" href="/upload.html">Загрузка файлов</a>
-        <a class="nav-link " data-page="files" href="/files.html">Удаление файлов</a>
+        <a class="nav-link" data-page="upload" href="/upload.html">Загрузка файлов</a>
+        <a class="nav-link" data-page="files" href="/files.html">Удаление файлов</a>
       </nav>
       <div class="sidebar-card">
-        <div class="auth-box">
+        <form class="auth-box" id="loginForm" novalidate>
           <div id="authStatus" class="status warning">Не авторизован</div>
           <input id="passwordInput" type="password" placeholder="Пароль администратора" />
-          <button id="loginBtn" class="primary">Войти</button>
-          <button id="logoutBtn" class="secondary hidden">Выйти</button>
-        </div>
+          <button id="loginBtn" class="primary" type="submit">Войти</button>
+          <button id="logoutBtn" class="secondary hidden" type="button">Выйти</button>
+        </form>
       </div>
     </aside>
     <main class="content">
@@ -34,30 +34,30 @@
           <h2 id="pageTitle">Редактор фильтров</h2>
           <p id="pageHint" class="muted">Здесь редактируются теги и фильтры, которые потом увидит главная страница.</p>
         </div>
-        <button id="reloadBtn" class="secondary">Обновить</button>
+        <button id="reloadBtn" class="secondary" type="button">Обновить</button>
       </header>
-      
+
 <section class="grid-2">
-  <div class="card">
+  <form class="card" id="tagsForm" novalidate>
     <h3>Теги</h3>
     <div id="tagsList" class="chips"></div>
     <div class="row">
       <input id="newTagInput" type="text" placeholder="Новый тег" />
-      <button id="addTagBtn" class="secondary">Добавить</button>
+      <button id="addTagBtn" class="secondary" type="button">Добавить</button>
     </div>
     <div class="row right">
-      <button id="saveTagsBtn" class="primary">Применить теги</button>
+      <button id="saveTagsBtn" class="primary" type="submit">Применить теги</button>
     </div>
-  </div>
-  <div class="card">
+  </form>
+  <form class="card" id="filtersForm" novalidate>
     <h3>Фильтры</h3>
     <div id="filtersList"></div>
     <div class="row">
-      <button id="addFilterBtn" class="secondary">Добавить фильтр</button>
-      <button id="saveFiltersBtn" class="primary">Применить фильтры</button>
+      <button id="addFilterBtn" class="secondary" type="button">Добавить фильтр</button>
+      <button id="saveFiltersBtn" class="primary" type="submit">Применить фильтры</button>
     </div>
     <p class="muted small">Тип dropdown — список, тип checkbox — галочка.</p>
-  </div>
+  </form>
 </section>
 
     </main>

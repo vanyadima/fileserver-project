@@ -15,17 +15,17 @@
         <p class="muted">Фильтры, теги, загрузка и удаление файлов.</p>
       </div>
       <nav class="nav-list">
-        <a class="nav-link " data-page="filters" href="/index.html">Редактор фильтров</a>
+        <a class="nav-link" data-page="filters" href="/index.html">Редактор фильтров</a>
         <a class="nav-link active" data-page="upload" href="/upload.html">Загрузка файлов</a>
-        <a class="nav-link " data-page="files" href="/files.html">Удаление файлов</a>
+        <a class="nav-link" data-page="files" href="/files.html">Удаление файлов</a>
       </nav>
       <div class="sidebar-card">
-        <div class="auth-box">
+        <form class="auth-box" id="loginForm" novalidate>
           <div id="authStatus" class="status warning">Не авторизован</div>
           <input id="passwordInput" type="password" placeholder="Пароль администратора" />
-          <button id="loginBtn" class="primary">Войти</button>
-          <button id="logoutBtn" class="secondary hidden">Выйти</button>
-        </div>
+          <button id="loginBtn" class="primary" type="submit">Войти</button>
+          <button id="logoutBtn" class="secondary hidden" type="button">Выйти</button>
+        </form>
       </div>
     </aside>
     <main class="content">
@@ -34,15 +34,17 @@
           <h2 id="pageTitle">Загрузка файлов</h2>
           <p id="pageHint" class="muted">Здесь можно загрузить несколько файлов сразу и назначить им теги и фильтры.</p>
         </div>
-        <button id="reloadBtn" class="secondary">Обновить</button>
+        <button id="reloadBtn" class="secondary" type="button">Обновить</button>
       </header>
-      
-<section class="card">
+
+<form class="card" id="uploadForm" novalidate>
   <h3>Загрузить несколько файлов</h3>
   <div class="grid-2">
     <div>
       <label>Папка</label>
-      <input id="uploadFolder" type="text" placeholder="например: docs/2026" />
+      <input id="uploadFolder" type="text" list="folderSuggestions" placeholder="например: docs/2026" />
+      <datalist id="folderSuggestions"></datalist>
+      <p class="muted small">Подсказки берутся из уже созданных каталогов. Глубина новой папки ограничена.</p>
     </div>
     <div>
       <label>Файлы</label>
@@ -61,10 +63,18 @@
     </div>
   </div>
 
-  <div class="row right">
-    <button id="uploadBtn" class="primary">Применить и загрузить</button>
+  <div id="uploadProgress" class="upload-progress hidden" aria-live="polite">
+    <div class="upload-progress__text">
+      <strong>Файл загружается…</strong>
+      <span id="uploadProgressText">0%</span>
+    </div>
+    <div class="upload-progress__bar"><span id="uploadProgressBar"></span></div>
   </div>
-</section>
+
+  <div class="row right">
+    <button id="uploadBtn" class="primary" type="submit">Применить и загрузить</button>
+  </div>
+</form>
 
     </main>
   </div>

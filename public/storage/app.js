@@ -8,6 +8,7 @@ let state = {
 };
 
 const el = (id) => document.getElementById(id);
+
 const request = async (path, body) => {
   const res = await fetch(`${apiBase}${path}`, {
     method: 'POST',
@@ -23,6 +24,24 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 }
 
+function formatBytes(bytes) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = Number(bytes || 0);
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+function makeCheckboxChip(text, checked, onChange, dataset = {}) {
+  const item = document.createElement('label');
+  item.className = 'check';
+  for (const [key, value] of Object.entries(dataset)) item.dataset[key] = value;
+  item.innerHTML = `<input type="checkbox" ${checked ? 'checked' : ''} /> <span>${escapeHtml(text)}</span>`;
+  const input = item.querySelector('input');
+  input.onchange = () => onChange(input.checked);
+  return item;
+}
+
 async function loadConfig() {
   const res = await fetch(`${apiBase}/api/public/config`);
   config = await res.json();
@@ -35,56 +54,78 @@ async function loadConfig() {
 function renderFilters() {
   const root = el('filtersArea');
   root.innerHTML = '';
+
   if (!config.filters.length && !config.tags.length) {
     root.innerHTML = '<div class="empty">Фильтры ещё не настроены в админке.</div>';
     return;
   }
-  for (const filter of config.filters) {
-    const box = document.createElement('div');
-    box.className = 'filter-row';
-    if (filter.type === 'dropdown') {
+
+  const dropdownFilters = config.filters.filter(filter => filter.type === 'dropdown');
+  const checkboxFilters = config.filters.filter(filter => filter.type === 'checkbox');
+
+  if (dropdownFilters.length) {
+    const dropdownBox = document.createElement('div');
+    dropdownBox.className = 'filter-stack';
+    dropdownFilters.forEach(filter => {
+      const box = document.createElement('div');
+      box.className = 'filter-row';
       box.innerHTML = `<label>${escapeHtml(filter.label)}</label>`;
       const sel = document.createElement('select');
       sel.dataset.filterId = filter.id;
       sel.innerHTML = '<option value="">— не выбрано —</option>' + (filter.options || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-      sel.onchange = () => state.filters[filter.id] = sel.value;
-      box.appendChild(sel);
-      if (state.filters[filter.id]) sel.value = state.filters[filter.id];
-    } else {
-      const checked = !!state.filters[filter.id];
-      box.innerHTML = `<label>${escapeHtml(filter.label)}</label>`;
-      const cb = document.createElement('label');
-      cb.className = 'check';
-      cb.innerHTML = `<input type="checkbox" data-filter-id="${escapeHtml(filter.id)}" ${checked ? 'checked' : ''} /> <span>${escapeHtml(filter.label)}</span>`;
-      cb.querySelector('input').onchange = () => {
-        if (cb.querySelector('input').checked) state.filters[filter.id] = true;
+      sel.onchange = () => {
+        if (sel.value) state.filters[filter.id] = sel.value;
         else delete state.filters[filter.id];
       };
-      box.appendChild(cb);
-    }
-    root.appendChild(box);
+      if (state.filters[filter.id]) sel.value = state.filters[filter.id];
+      box.appendChild(sel);
+      dropdownBox.appendChild(box);
+    });
+    root.appendChild(dropdownBox);
+  }
+
+  if (checkboxFilters.length) {
+    const group = document.createElement('section');
+    group.className = 'checkbox-group-card';
+    const title = document.createElement('div');
+    title.className = 'checkbox-group-card__title';
+    title.textContent = 'Галочки';
+    const box = document.createElement('div');
+    box.className = 'checkbox-group';
+    checkboxFilters.forEach(filter => {
+      const checked = !!state.filters[filter.id];
+      const chip = makeCheckboxChip(filter.label, checked, (isChecked) => {
+        if (isChecked) state.filters[filter.id] = true;
+        else delete state.filters[filter.id];
+      }, { filterId: filter.id });
+      chip.querySelector('input').dataset.filterId = filter.id;
+      box.appendChild(chip);
+    });
+    group.appendChild(title);
+    group.appendChild(box);
+    root.appendChild(group);
   }
 
   if (config.tags.length) {
-    const tagBox = document.createElement('div');
-    tagBox.className = 'filter-row';
-    tagBox.innerHTML = `<label>Теги</label>`;
+    const tagBox = document.createElement('section');
+    tagBox.className = 'checkbox-group-card';
+    const title = document.createElement('div');
+    title.className = 'checkbox-group-card__title';
+    title.textContent = 'Теги';
     const tagsWrap = document.createElement('div');
-    tagsWrap.className = 'checkbox-pills';
+    tagsWrap.className = 'checkbox-group';
     for (const tag of config.tags) {
-      const item = document.createElement('label');
-      item.className = 'check';
       const checked = state.tags.includes(tag);
-      item.innerHTML = `<input type="checkbox" ${checked ? 'checked' : ''} /> <span>${escapeHtml(tag)}</span>`;
-      item.querySelector('input').onchange = () => {
-        if (item.querySelector('input').checked) {
+      const item = makeCheckboxChip(tag, checked, (isChecked) => {
+        if (isChecked) {
           if (!state.tags.includes(tag)) state.tags.push(tag);
         } else {
           state.tags = state.tags.filter(t => t.toLowerCase() !== tag.toLowerCase());
         }
-      };
+      }, { tag });
       tagsWrap.appendChild(item);
     }
+    tagBox.appendChild(title);
     tagBox.appendChild(tagsWrap);
     root.appendChild(tagBox);
   }
@@ -93,11 +134,14 @@ function renderFilters() {
 function renderFolders() {
   const root = el('foldersTree');
   root.innerHTML = '';
+
   const allBtn = document.createElement('button');
   allBtn.className = `folder-item ${!state.folder ? 'active' : ''}`;
+  allBtn.type = 'button';
   allBtn.textContent = 'Все папки';
   allBtn.onclick = () => { state.folder = ''; setFolderUI(); applySearch(); };
   root.appendChild(allBtn);
+
   if (!config.folders.length) {
     const empty = document.createElement('div');
     empty.className = 'muted';
@@ -108,7 +152,9 @@ function renderFolders() {
     for (const folder of config.folders) {
       const btn = document.createElement('button');
       btn.className = `folder-item ${state.folder === folder ? 'active' : ''}`;
+      btn.type = 'button';
       btn.textContent = folder;
+      btn.title = folder;
       btn.onclick = () => { state.folder = folder; setFolderUI(); applySearch(); };
       root.appendChild(btn);
     }
@@ -120,6 +166,15 @@ function setFolderUI() {
   const select = el('folderSelect');
   select.value = state.folder;
   document.querySelectorAll('.folder-item').forEach(btn => btn.classList.toggle('active', btn.textContent === (state.folder || 'Все папки')));
+}
+
+function resetFilters() {
+  state = { search: '', folder: '', tags: [], filters: {} };
+  if (el('searchInput')) el('searchInput').value = '';
+  if (el('folderSelect')) el('folderSelect').value = '';
+  renderFilters();
+  renderFolders();
+  applySearch();
 }
 
 function groupFilesByFolder(files) {
@@ -136,10 +191,12 @@ function renderResults(files) {
   el('resultCount').textContent = `${files.length} файлов`;
   const root = el('results');
   root.innerHTML = '';
+
   if (!files.length) {
     root.innerHTML = '<div class="empty">Ничего не найдено.</div>';
     return;
   }
+
   const groups = groupFilesByFolder(files);
   for (const [folder, group] of groups) {
     const wrap = document.createElement('section');
@@ -148,43 +205,40 @@ function renderResults(files) {
     for (const file of group) {
       const row = document.createElement('div');
       row.className = 'file-row';
+
       const left = document.createElement('div');
       left.innerHTML = `
-        <div class="file-name">${escapeHtml(file.originalName)}</div>
+        <div class="file-name" title="${escapeHtml(file.originalName)}">${escapeHtml(file.originalName)}</div>
         <div class="file-meta">
           <span>${formatBytes(file.size || 0)}</span>
           <span>${file.createdAt ? new Date(file.createdAt).toLocaleString('ru-RU') : ''}</span>
         </div>
       `;
+
       const tags = document.createElement('div');
       tags.className = 'tags';
       (file.tags || []).forEach(tag => {
         const pill = document.createElement('span');
         pill.className = 'tag';
+        pill.title = tag;
         pill.textContent = tag;
         tags.appendChild(pill);
       });
       left.appendChild(tags);
+
       const actions = document.createElement('div');
       const a = document.createElement('a');
       a.className = 'download-btn';
       a.href = `${apiBase}/api/files/${encodeURIComponent(file.id)}/download`;
       a.textContent = 'Скачать';
       actions.appendChild(a);
+
       row.appendChild(left);
       row.appendChild(actions);
       wrap.appendChild(row);
     }
     root.appendChild(wrap);
   }
-}
-
-function formatBytes(bytes) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let v = Number(bytes || 0);
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 async function applySearch() {
@@ -205,8 +259,22 @@ async function applySearch() {
 function bindEvents() {
   el('searchInput').addEventListener('input', (e) => { state.search = e.target.value; });
   el('folderSelect').addEventListener('change', (e) => { state.folder = e.target.value; renderFolders(); });
+  el('searchForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    applySearch();
+  });
   el('applyBtn').onclick = applySearch;
+  el('resetBtn').onclick = resetFilters;
   el('clearFolderBtn').onclick = () => { state.folder = ''; renderFolders(); applySearch(); };
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target;
+    if (!target || target.matches('textarea,[contenteditable="true"]')) return;
+    if (target.closest('#searchForm')) {
+      e.preventDefault();
+      applySearch();
+    }
+  });
 }
 
 bindEvents();
