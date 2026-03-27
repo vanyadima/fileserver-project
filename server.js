@@ -117,25 +117,41 @@ function normalizeTags(tags) {
 function normalizeFilters(filters) {
   if (!Array.isArray(filters)) return [];
   const seen = new Set();
-  const out = [];
-  for (const item of filters) {
-    const label = String(item?.label ?? '').trim().replace(/\s+/g, ' ');
-    const type = item?.type === 'checkbox' ? 'checkbox' : 'dropdown';
-    let id = String(item?.id ?? '').trim();
-    if (!id) id = slugify(label || 'filter');
-    id = id.replace(/[^a-zA-Z0-9_-]/g, '_');
-    if (!id) continue;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const normalized = { id, label: label || id, type };
-    if (type === 'dropdown') {
-      normalized.options = Array.isArray(item?.options)
-        ? Array.from(new Set(item.options.map(v => String(v ?? '').trim()).filter(Boolean)))
-        : [];
+
+  const visit = (items) => {
+    if (!Array.isArray(items)) return [];
+    const out = [];
+    for (const item of items) {
+      const label = String(item?.label ?? '').trim().replace(/\s+/g, ' ');
+      const type = item?.type === 'checkbox' ? 'checkbox' : 'dropdown';
+      let id = String(item?.id ?? '').trim();
+      if (!id) id = slugify(label || 'filter');
+      id = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (!id) continue;
+      if (seen.has(id)) {
+        let suffix = 2;
+        let next = `${id}_${suffix}`;
+        while (seen.has(next)) {
+          suffix += 1;
+          next = `${id}_${suffix}`;
+        }
+        id = next;
+      }
+      seen.add(id);
+      const normalized = { id, label: label || id, type };
+      if (type === 'dropdown') {
+        normalized.options = Array.isArray(item?.options)
+          ? Array.from(new Set(item.options.map(v => String(v ?? '').trim()).filter(Boolean)))
+          : [];
+      }
+      const children = visit(item?.children);
+      if (children.length) normalized.children = children;
+      out.push(normalized);
     }
-    out.push(normalized);
-  }
-  return out;
+    return out;
+  };
+
+  return visit(filters);
 }
 
 function slugify(text) {
@@ -163,6 +179,77 @@ function safeFileName(name) {
     .slice(0, 180) || 'file';
 }
 
+function folderDepth(folder) {
+  const cleaned = safeFolder(folder);
+  if (!cleaned) return 0;
+  return cleaned.split('/').filter(Boolean).length;
+}
+
+function isHiddenPath(relPath) {
+  return String(relPath ?? '')
+    .split('/')
+    .some(segment => segment.startsWith('.'));
+}
+
+function isVisibleFile(file) {
+  if (!file) return false;
+  if (String(file.originalName ?? '').startsWith('.')) return false;
+  const rel = file.relativePath || fileKeyFromMeta(file) || '';
+  return !isHiddenPath(rel) && !isHiddenPath(file.folder || '');
+}
+
+function visibleFiles(files) {
+  return (Array.isArray(files) ? files : []).filter(isVisibleFile);
+}
+
+async function walkFolders(dir, rel = '') {
+  const results = [];
+  const entries = await fsp.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    if (!entry.isDirectory()) continue;
+    const nextRel = rel ? path.posix.join(rel, entry.name) : entry.name;
+    if (isHiddenPath(nextRel)) continue;
+    results.push(nextRel.replace(/\\/g, '/'));
+    results.push(...await walkFolders(path.join(dir, entry.name), nextRel));
+  }
+  return results;
+}
+
+async function removeDirRecursive(target) {
+  const abs = path.resolve(target);
+  const root = path.resolve(STORAGE_DIR);
+  if (!abs.startsWith(`${root}${path.sep}`) && abs !== root) {
+    throw new Error('Invalid folder path');
+  }
+  await fsp.rm(abs, { recursive: true, force: true });
+}
+
+function buildFolderMeta(files) {
+  const byFolder = new Map();
+  const visible = visibleFiles(files);
+  for (const file of visible) {
+    const folder = safeFolder(file.folder);
+    if (!folder) continue;
+    const parts = folder.split('/').filter(Boolean);
+    let acc = '';
+    for (const part of parts) {
+      if (part.startsWith('.')) break;
+      acc = acc ? `${acc}/${part}` : part;
+      if (!byFolder.has(acc)) byFolder.set(acc, { path: acc, depth: acc.split('/').length, fileCount: 0, childCount: 0 });
+    }
+  }
+  const folders = [...byFolder.values()];
+  for (const folder of folders) {
+    folder.fileCount = visible.filter(file => {
+      const current = safeFolder(file.folder);
+      return current === folder.path || current.startsWith(`${folder.path}/`);
+    }).length;
+    folder.childCount = folders.filter(other => other.path.startsWith(`${folder.path}/`)).length;
+  }
+  return folders.sort((a, b) => a.path.localeCompare(b.path, 'ru'));
+}
+
 function ensureDirSync(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -171,8 +258,10 @@ async function walkFiles(dir, rel = '') {
   const results = [];
   const entries = await fsp.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
     const abs = path.join(dir, entry.name);
     const nextRel = rel ? path.posix.join(rel, entry.name) : entry.name;
+    if (isHiddenPath(nextRel)) continue;
     if (entry.isDirectory()) {
       results.push(...await walkFiles(abs, nextRel));
     } else if (entry.isFile()) {
@@ -189,17 +278,23 @@ function fileKeyFromMeta(file) {
 
 function buildFolders(files) {
   const set = new Set();
-  for (const f of files) {
-    if (f.folder) {
-      const parts = f.folder.split('/');
-      let acc = '';
-      for (const p of parts) {
-        acc = acc ? `${acc}/${p}` : p;
-        set.add(acc);
-      }
+  for (const f of visibleFiles(files)) {
+    const folder = safeFolder(f.folder);
+    if (!folder) continue;
+    const parts = folder.split('/').filter(Boolean);
+    let acc = '';
+    for (const part of parts) {
+      if (part.startsWith('.')) break;
+      acc = acc ? `${acc}/${part}` : part;
+      set.add(acc);
     }
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
+async function listVisibleFolders() {
+  const folders = await walkFolders(STORAGE_DIR);
+  return folders.filter(folder => !isHiddenPath(folder)).sort((a, b) => a.localeCompare(b, 'ru'));
 }
 
 function matchesSearch(file, criteria, filterDefs) {
@@ -226,17 +321,26 @@ function matchesSearch(file, criteria, filterDefs) {
   }
 
   const selectedFilters = criteria.filters && typeof criteria.filters === 'object' ? criteria.filters : {};
-  for (const def of filterDefs) {
+  const checkFilter = (def) => {
     const selected = selectedFilters[def.id];
-    if (selected === undefined || selected === null || selected === '') continue;
-    const current = (file.filters || {})[def.id];
-    if (def.type === 'checkbox') {
-      const want = selected === true || selected === 'true' || selected === '1';
-      if (want && !current) return false;
-      if (!want && current) return false;
-    } else if (String(current ?? '') !== String(selected)) {
-      return false;
+    if (selected !== undefined && selected !== null && selected !== '') {
+      const current = (file.filters || {})[def.id];
+      if (def.type === 'checkbox') {
+        const want = selected === true || selected === 'true' || selected === '1';
+        if (want && !current) return false;
+        if (!want && current) return false;
+      } else if (String(current ?? '') !== String(selected)) {
+        return false;
+      }
     }
+    for (const child of def.children || []) {
+      if (!checkFilter(child)) return false;
+    }
+    return true;
+  };
+
+  for (const def of filterDefs || []) {
+    if (!checkFilter(def)) return false;
   }
   return true;
 }
@@ -324,7 +428,7 @@ async function loadStore() {
   }
   store.tags = normalizeTags(store.tags);
   store.filters = normalizeFilters(store.filters);
-  store.files = Array.isArray(store.files) ? store.files : [];
+  store.files = visibleFiles(store.files);
   await syncFromDisk();
 }
 
@@ -361,6 +465,7 @@ async function syncFromDisk() {
       found.size = item.size;
       found.updatedAt = found.updatedAt || found.createdAt || new Date(item.mtimeMs).toISOString();
       found.relativePath = rel;
+      found.folder = path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel);
       continue;
     }
     const storedName = path.posix.basename(rel);
@@ -382,7 +487,7 @@ async function syncFromDisk() {
   }
 
   const before = store.files.length;
-  store.files = store.files.filter(file => existing.has(fileKeyFromMeta(file)));
+  store.files = visibleFiles(store.files).filter(file => existing.has(fileKeyFromMeta(file)));
   if (before !== store.files.length) await queueSave();
 }
 
@@ -430,7 +535,7 @@ async function handleApi(req, res) {
         ok: true,
         tags: store.tags,
         filters: store.filters,
-        folders: buildFolders(store.files)
+        folders: await listVisibleFolders()
       });
     }
 
@@ -444,7 +549,7 @@ async function handleApi(req, res) {
           ...file,
           downloadUrl: `/api/files/${encodeURIComponent(file.id)}/download`
         }));
-      return json(res, 200, { ok: true, files: filtered, folders: buildFolders(filtered) });
+      return json(res, 200, { ok: true, files: filtered, folders: await listVisibleFolders() });
     }
 
     const adminPaths = [
@@ -467,7 +572,7 @@ async function handleApi(req, res) {
         tags: store.tags,
         filters: store.filters,
         folders: buildFolders(store.files),
-        files: store.files.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+        files: visibleFiles(store.files).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
       });
     }
 
@@ -552,7 +657,7 @@ async function handleApi(req, res) {
     if (req.method === 'GET' && pathname === '/api/admin/files') {
       if (!adminGuard(req, res)) return;
       await syncFromDisk();
-      return json(res, 200, { ok: true, files: store.files.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))) });
+      return json(res, 200, { ok: true, files: visibleFiles(store.files).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))) });
     }
 
     const editMatch = pathname.match(/^\/api\/admin\/files\/([^/]+)$/);
@@ -580,6 +685,53 @@ async function handleApi(req, res) {
       store.files.splice(idx, 1);
       await queueSave();
       return json(res, 200, { ok: true });
+    }
+
+    if (req.method === 'GET' && pathname === '/api/admin/folders') {
+      if (!adminGuard(req, res)) return;
+      await syncFromDisk();
+      const folders = await walkFolders(STORAGE_DIR);
+      const meta = buildFolderMeta(store.files);
+      const metaMap = new Map(meta.map(item => [item.path, item]));
+      return json(res, 200, {
+        ok: true,
+        folders: folders.map(folder => ({
+          path: folder,
+          depth: folder.split('/').length,
+          fileCount: metaMap.get(folder)?.fileCount || 0,
+          childCount: metaMap.get(folder)?.childCount || 0
+        }))
+      });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/admin/folders') {
+      if (!adminGuard(req, res)) return;
+      const body = parseJsonBody(await readBody(req));
+      const folder = safeFolder(body.path || body.folder || '');
+      if (!folder) return json(res, 400, { ok: false, error: 'Укажите путь папки' });
+      if (folderDepth(folder) > MAX_FOLDER_DEPTH) {
+        return json(res, 400, { ok: false, error: `Глубина папки не должна быть больше ${MAX_FOLDER_DEPTH} уровней` });
+      }
+      if (isHiddenPath(folder)) return json(res, 400, { ok: false, error: 'Скрытые папки недоступны' });
+      const abs = path.join(STORAGE_DIR, folder);
+      await fsp.mkdir(abs, { recursive: true });
+      return json(res, 200, { ok: true, path: folder });
+    }
+
+    if (req.method === 'DELETE' && pathname === '/api/admin/folders') {
+      if (!adminGuard(req, res)) return;
+      const body = parseJsonBody(await readBody(req));
+      const folder = safeFolder(body.path || body.folder || '');
+      if (!folder) return json(res, 400, { ok: false, error: 'Укажите путь папки' });
+      if (isHiddenPath(folder)) return json(res, 400, { ok: false, error: 'Скрытые папки недоступны' });
+      const abs = path.join(STORAGE_DIR, folder);
+      await removeDirRecursive(abs);
+      store.files = visibleFiles(store.files).filter(file => {
+        const current = safeFolder(file.folder);
+        return !(current === folder || current.startsWith(`${folder}/`));
+      });
+      await queueSave();
+      return json(res, 200, { ok: true, path: folder });
     }
 
     const downloadMatch = pathname.match(/^\/api\/files\/([^/]+)\/download$/);

@@ -4,7 +4,8 @@ let token = localStorage.getItem('adminToken') || '';
 let state = {
   tags: [],
   filters: [],
-  files: []
+  files: [],
+  folders: []
 };
 
 const MAX_FOLDER_DEPTH = 3;
@@ -21,6 +22,10 @@ const PAGE_META = {
   files: {
     title: 'Удаление файлов',
     hint: 'Здесь можно редактировать теги файлов и удалять их.'
+  },
+  catalogs: {
+    title: 'Каталоги',
+    hint: 'Создавайте и удаляйте папки, чтобы удобно раскладывать файлы по каталогам.'
   }
 };
 
@@ -105,6 +110,37 @@ function formatDuration(ms) {
   return `${hours} ч ${mins} мин`;
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])).replace(/'/g, '&#39;');
+}
+
+function formatBytes(bytes) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = Number(bytes || 0);
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+function createFilterTemplate(label = 'Новый фильтр') {
+  return {
+    id: `filter_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    label,
+    type: 'dropdown',
+    options: ['Опция 1', 'Опция 2'],
+    children: []
+  };
+}
+
+function getFilterByPath(filters, path = []) {
+  let current = { children: filters };
+  for (const index of path) {
+    if (!current || !Array.isArray(current.children) || !current.children[index]) return null;
+    current = current.children[index];
+  }
+  return current;
+}
+
 function getKnownFolders() {
   return [...new Set(state.files.map(file => String(file.folder || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
 }
@@ -130,10 +166,6 @@ function isFolderAllowed(folder) {
   if (!cleaned) return true;
   const parts = cleaned.split('/').filter(Boolean);
   return parts.length <= MAX_FOLDER_DEPTH && !cleaned.includes('..');
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 }
 
 function renderTags(list, onDelete) {
@@ -181,6 +213,76 @@ function renderTagCheckboxes(list) {
   return wrap;
 }
 
+function renderFilterNode(filter, container, depth = 0, parentList = state.filters, path = []) {
+  const node = document.createElement('div');
+  node.className = 'filter-node';
+  node.dataset.depth = String(depth);
+  node.dataset.path = path.join('.');
+
+  const row = document.createElement('div');
+  row.className = 'filter-item filter-item--tree';
+  row.style.setProperty('--depth', String(depth));
+  row.innerHTML = `
+    <div class="filter-head filter-head--tree">
+      <div class="filter-tree-label">
+        <span class="filter-tree-indent" aria-hidden="true"></span>
+        <div>
+          <label>Название</label>
+          <input data-role="label" value="${escapeHtml(filter.label)}" />
+        </div>
+      </div>
+      <div>
+        <label>Тип</label>
+        <select data-role="type">
+          <option value="dropdown" ${filter.type === 'dropdown' ? 'selected' : ''}>dropdown</option>
+          <option value="checkbox" ${filter.type === 'checkbox' ? 'selected' : ''}>checkbox</option>
+        </select>
+      </div>
+      <div>
+        <label>Опции</label>
+        <input data-role="options" value="${escapeHtml((filter.options || []).join(', '))}" placeholder="Опция 1, Опция 2" />
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="secondary" data-role="add-child" type="button">+ Подфильтр</button>
+      <button class="secondary" data-role="remove" type="button">Удалить</button>
+    </div>
+  `;
+
+  const typeSelect = row.querySelector('[data-role="type"]');
+  const optionsInput = row.querySelector('[data-role="options"]');
+  const toggleOptions = () => {
+    optionsInput.disabled = typeSelect.value !== 'dropdown';
+    row.classList.toggle('is-checkbox', typeSelect.value === 'checkbox');
+  };
+  typeSelect.addEventListener('change', toggleOptions);
+  toggleOptions();
+
+  row.querySelector('[data-role="remove"]').onclick = () => {
+    const idx = parentList.indexOf(filter);
+    if (idx !== -1) parentList.splice(idx, 1);
+    renderFilterEditor();
+  };
+
+  row.querySelector('[data-role="add-child"]').onclick = async () => {
+    await persistFilterDraft(true);
+    const target = getFilterByPath(state.filters, path);
+    if (!target) return;
+    target.children = Array.isArray(target.children) ? target.children : [];
+    target.children.push(createFilterTemplate('Дочерний фильтр'));
+    renderFilterEditor();
+  };
+
+  node.appendChild(row);
+  const children = document.createElement('div');
+  children.className = 'filter-children';
+  if (Array.isArray(filter.children) && filter.children.length) {
+    filter.children.forEach((child, index) => renderFilterNode(child, children, depth + 1, filter.children, [...path, index]));
+  }
+  node.appendChild(children);
+  container.appendChild(node);
+}
+
 function renderFilterEditor() {
   const root = el('filtersList');
   if (!root) return;
@@ -189,48 +291,57 @@ function renderFilterEditor() {
     root.innerHTML = '<div class="notice">Фильтров пока нет. Добавьте первый фильтр.</div>';
     return;
   }
-  state.filters.forEach((f, index) => {
-    const box = document.createElement('div');
-    box.className = 'filter-item';
-    box.innerHTML = `
-      <div class="filter-head">
-        <div>
-          <label>Название</label>
-          <input data-role="label" value="${escapeHtml(f.label)}" />
-        </div>
-        <div>
-          <label>Тип</label>
-          <select data-role="type">
-            <option value="dropdown" ${f.type === 'dropdown' ? 'selected' : ''}>dropdown</option>
-            <option value="checkbox" ${f.type === 'checkbox' ? 'selected' : ''}>checkbox</option>
-          </select>
-        </div>
-        <div>
-          <label>&nbsp;</label>
-          <button class="secondary" data-role="remove" type="button">Удалить</button>
-        </div>
-      </div>
-      <div class="filter-options ${f.type === 'dropdown' ? '' : 'hidden'}" data-role="optionsBox">
-        <label>Опции (через запятую)</label>
-        <input data-role="options" value="${escapeHtml((f.options || []).join(', '))}" />
-      </div>
-    `;
-    const removeBtn = box.querySelector('[data-role="remove"]');
-    if (removeBtn) {
-      removeBtn.onclick = () => {
-        state.filters.splice(index, 1);
-        renderFilterEditor();
+  const shell = document.createElement('div');
+  shell.className = 'filter-table';
+  const head = document.createElement('div');
+  head.className = 'filter-table__head';
+  head.innerHTML = '<div>Название</div><div>Тип</div><div>Опции</div>';
+  shell.appendChild(head);
+  const body = document.createElement('div');
+  body.className = 'filter-table__body';
+  state.filters.forEach((filter, index) => renderFilterNode(filter, body, 0, state.filters, [index]));
+  shell.appendChild(body);
+  root.appendChild(shell);
+}
+
+function collectFiltersFromEditor() {
+  const root = el('filtersList');
+  if (!root) return [];
+
+  const collectNodes = (container) => {
+    const items = [];
+    [...container.children].forEach(node => {
+      if (!node.classList.contains('filter-node')) return;
+      const label = node.querySelector('[data-role="label"]').value.trim();
+      const type = node.querySelector('[data-role="type"]').value;
+      const optionsValue = node.querySelector('[data-role="options"]').value;
+      const idBase = label.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '_').replace(/^_+|_+$/g, '');
+      const id = idBase || `filter_${items.length + 1}`;
+      const obj = {
+        id,
+        label: label || id,
+        type
       };
-    }
-    const typeSelect = box.querySelector('[data-role="type"]');
-    const optionsBox = box.querySelector('[data-role="optionsBox"]');
-    if (typeSelect && optionsBox) {
-      typeSelect.onchange = () => {
-        optionsBox.classList.toggle('hidden', typeSelect.value !== 'dropdown');
-      };
-    }
-    root.appendChild(box);
-  });
+      if (type === 'dropdown') {
+        obj.options = optionsValue.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      const childContainer = node.querySelector(':scope > .filter-children');
+      const children = childContainer ? collectNodes(childContainer) : [];
+      if (children.length) obj.children = children;
+      items.push(obj);
+    });
+    return items;
+  };
+
+  return collectNodes(root.querySelector('.filter-table__body') || root);
+}
+
+async function persistFilterDraft(silent = false) {
+  if (!exists('filtersList')) return;
+  if (!el('filtersList').querySelector('.filter-node')) return;
+  state.filters = collectFiltersFromEditor();
+  await request('/api/admin/filters', { method: 'POST', body: JSON.stringify({ filters: state.filters }) });
+  if (!silent) notify('Черновик фильтров сохранён');
 }
 
 function renderUploadArea() {
@@ -246,62 +357,44 @@ function renderUploadArea() {
     return;
   }
 
-  const dropdownFilters = state.filters.filter(f => f.type === 'dropdown');
-  const checkboxFilters = state.filters.filter(f => f.type === 'checkbox');
+  const renderControl = (filter, depth = 0) => {
+    const details = document.createElement('details');
+    details.className = 'filter-accordion';
+    if (depth < 1) details.open = true;
 
-  if (dropdownFilters.length) {
-    const group = document.createElement('div');
-    group.className = 'upload-filter-group';
-    const title = document.createElement('div');
-    title.className = 'upload-filter-group__title';
-    title.textContent = 'Списки';
-    group.appendChild(title);
+    const summary = document.createElement('summary');
+    summary.innerHTML = `<span>${escapeHtml(filter.label)}</span><span class="muted">${escapeHtml(filter.type)}</span>`;
+    details.appendChild(summary);
 
-    dropdownFilters.forEach(f => {
+    const body = document.createElement('div');
+    body.className = 'filter-accordion__body';
+    if (filter.type === 'dropdown') {
       const wrap = document.createElement('div');
-      wrap.style.marginBottom = '12px';
-      const label = document.createElement('label');
-      label.textContent = f.label;
-      wrap.appendChild(label);
+      wrap.innerHTML = `<label>${escapeHtml(filter.label)}</label>`;
       const sel = document.createElement('select');
-      sel.dataset.filterId = f.id;
-      const options = (f.options || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-      sel.innerHTML = '<option value="">— не выбрано —</option>' + options;
+      sel.dataset.filterId = filter.id;
+      sel.innerHTML = '<option value="">— не выбрано —</option>' + (filter.options || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
       wrap.appendChild(sel);
-      group.appendChild(wrap);
-    });
-
-    root.appendChild(group);
-  }
-
-  if (checkboxFilters.length) {
-    const group = document.createElement('div');
-    group.className = 'upload-filter-group';
-    const title = document.createElement('div');
-    title.className = 'upload-filter-group__title';
-    title.textContent = 'Галочки';
-    const row = document.createElement('div');
-    row.className = 'checkbox-group';
-
-    checkboxFilters.forEach(f => {
+      body.appendChild(wrap);
+    } else {
       const cb = document.createElement('label');
       cb.className = 'check';
-      cb.innerHTML = `<input type="checkbox" data-filter-id="${escapeHtml(f.id)}" /> <span>${escapeHtml(f.label)}</span>`;
-      row.appendChild(cb);
-    });
+      cb.innerHTML = `<input type="checkbox" data-filter-id="${escapeHtml(filter.id)}" /> <span>${escapeHtml(filter.label)}</span>`;
+      body.appendChild(cb);
+    }
 
-    group.appendChild(title);
-    group.appendChild(row);
-    root.appendChild(group);
-  }
-}
+    if (Array.isArray(filter.children) && filter.children.length) {
+      const nested = document.createElement('div');
+      nested.className = 'filter-accordion__nested';
+      filter.children.forEach(child => nested.appendChild(renderControl(child, depth + 1)));
+      body.appendChild(nested);
+    }
 
-function formatBytes(bytes) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let v = Number(bytes || 0);
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+    details.appendChild(body);
+    return details;
+  };
+
+  state.filters.forEach(filter => root.appendChild(renderControl(filter)));
 }
 
 function renderFiles() {
@@ -331,64 +424,74 @@ function renderFiles() {
         <button class="secondary" data-role="delete" type="button">Удалить файл</button>
       </div>
     `;
-    const saveBtn = row.querySelector('[data-role="save"]');
-    if (saveBtn) {
-      saveBtn.onclick = async () => {
-        const tagsInput = row.querySelector('[data-role="tags"]');
-        const tags = (tagsInput?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-        await request(`/api/admin/files/${encodeURIComponent(file.id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ tags })
-        });
-        await loadAdminData();
-        notify('Сохранено');
-      };
-    }
-    const deleteBtn = row.querySelector('[data-role="delete"]');
-    if (deleteBtn) {
-      deleteBtn.onclick = async () => {
-        if (!confirm(`Удалить файл ${file.originalName}?`)) return;
-        await request(`/api/admin/files/${encodeURIComponent(file.id)}`, { method: 'DELETE' });
-        await loadAdminData();
-        notify('Сохранено');
-      };
-    }
+    row.querySelector('[data-role="save"]').onclick = async () => {
+      const tagsInput = row.querySelector('[data-role="tags"]');
+      const tags = (tagsInput?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+      await request(`/api/admin/files/${encodeURIComponent(file.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tags })
+      });
+      await loadAdminData();
+      notify('Сохранено');
+    };
+    row.querySelector('[data-role="delete"]').onclick = async () => {
+      if (!confirm(`Удалить файл ${file.originalName}?`)) return;
+      await request(`/api/admin/files/${encodeURIComponent(file.id)}`, { method: 'DELETE' });
+      await loadAdminData();
+      notify('Удалено');
+    };
     root.appendChild(row);
   }
 }
 
-function collectFiltersFromEditor() {
-  const root = el('filtersList');
-  if (!root) return [];
-  return [...root.querySelectorAll('.filter-item')].map((node, idx) => {
-    const label = node.querySelector('[data-role="label"]').value.trim();
-    const type = node.querySelector('[data-role="type"]').value;
-    const id = label.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '_').replace(/^_+|_+$/g, '') || `filter_${idx + 1}`;
-    const obj = { id, label: label || id, type };
-    if (type === 'dropdown') {
-      obj.options = node.querySelector('[data-role="options"]').value.split(',').map(s => s.trim()).filter(Boolean);
-    }
-    return obj;
-  });
-}
+function renderCatalogsPage() {
+  const root = el('catalogsList');
+  if (!root) return;
+  const searchValue = (el('catalogSearch')?.value || '').trim().toLowerCase();
+  const folders = (state.folders || []).filter(folder => !searchValue || folder.path.toLowerCase().includes(searchValue));
+  root.innerHTML = '';
 
-function removeTag(tag) {
-  state.tags = state.tags.filter(t => t.toLowerCase() !== tag.toLowerCase());
-  const tagsList = el('tagsList');
-  if (tagsList) tagsList.replaceChildren(renderTags(state.tags, removeTag));
-  renderUploadArea();
+  if (!folders.length) {
+    root.innerHTML = '<div class="notice">Папок пока нет. Создайте первый каталог ниже.</div>';
+    return;
+  }
+
+  const tree = document.createElement('div');
+  tree.className = 'catalog-tree';
+  folders.forEach(folder => {
+    const row = document.createElement('div');
+    row.className = 'catalog-row';
+    row.style.paddingLeft = `${12 + Math.max(0, folder.depth - 1) * 18}px`;
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(folder.path)}</strong>
+        <div class="muted small">${folder.fileCount} файлов · ${folder.childCount} вложенных</div>
+      </div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'catalog-row__actions';
+    const btn = document.createElement('button');
+    btn.className = 'secondary';
+    btn.type = 'button';
+    btn.textContent = 'Удалить';
+    btn.onclick = async () => {
+      if (!confirm(`Удалить каталог ${folder.path}?`)) return;
+      await request('/api/admin/folders', { method: 'DELETE', body: JSON.stringify({ path: folder.path }) });
+      await loadAdminData();
+      notify('Каталог удалён');
+    };
+    actions.appendChild(btn);
+    row.appendChild(actions);
+    tree.appendChild(row);
+  });
+
+  root.appendChild(tree);
 }
 
 function renderPageShell() {
   const meta = PAGE_META[page] || PAGE_META.filters;
   if (el('pageTitle')) el('pageTitle').textContent = meta.title;
   if (el('pageHint')) el('pageHint').textContent = meta.hint;
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.toggle('active', link.dataset.page === page);
-  });
-}
-
-function bindNav() {
   document.querySelectorAll('.nav-link').forEach(link => {
     link.classList.toggle('active', link.dataset.page === page);
   });
@@ -404,9 +507,15 @@ async function loadAdminData() {
     authStatus.textContent = 'Авторизован';
     authStatus.className = 'status ok';
   }
-  if (exists('logoutBtn')) el('logoutBtn').classList.remove('hidden');
-  if (exists('loginBtn')) el('loginBtn').classList.add('hidden');
+  el('logoutBtn')?.classList.remove('hidden');
+  el('loginBtn')?.classList.add('hidden');
   if (exists('passwordInput')) el('passwordInput').value = '';
+
+  if (page === 'catalogs') {
+    const foldersData = await request('/api/admin/folders');
+    state.folders = foldersData.folders || [];
+  }
+
   renderUI();
 }
 
@@ -415,6 +524,7 @@ function renderUI() {
   renderFilterEditor();
   renderUploadArea();
   renderFiles();
+  renderCatalogsPage();
 }
 
 async function refreshAll() {
@@ -428,6 +538,28 @@ async function refreshAll() {
     return;
   }
   await loadAdminData();
+}
+
+function removeTag(tag) {
+  state.tags = state.tags.filter(t => t.toLowerCase() !== tag.toLowerCase());
+  const tagsList = el('tagsList');
+  if (tagsList) tagsList.replaceChildren(renderTags(state.tags, removeTag));
+  renderUploadArea();
+}
+
+async function saveTags() {
+  await request('/api/admin/tags', { method: 'POST', body: JSON.stringify({ tags: state.tags }) });
+  notify('Сохранено');
+  await loadAdminData();
+}
+
+function collectUploadFilters() {
+  const filterValues = {};
+  document.querySelectorAll('#uploadFilters [data-filter-id]').forEach(node => {
+    if (node.type === 'checkbox') filterValues[node.dataset.filterId] = node.checked;
+    else filterValues[node.dataset.filterId] = node.value;
+  });
+  return filterValues;
 }
 
 function bindActions() {
@@ -479,15 +611,14 @@ function bindActions() {
   if (exists('saveTagsBtn')) {
     el('tagsForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await request('/api/admin/tags', { method: 'POST', body: JSON.stringify({ tags: state.tags }) });
-      notify('Сохранено');
-      await loadAdminData();
+      await saveTags();
     });
   }
 
   if (exists('addFilterBtn')) {
-    el('addFilterBtn').onclick = () => {
-      state.filters.push({ id: `filter_${state.filters.length + 1}`, label: 'Новый фильтр', type: 'dropdown', options: ['Опция 1', 'Опция 2'] });
+    el('addFilterBtn').onclick = async () => {
+      await persistFilterDraft(true);
+      state.filters.push(createFilterTemplate());
       renderFilterEditor();
     };
   }
@@ -519,12 +650,7 @@ function bindActions() {
       form.append('folder', folderValue);
       const selectedTags = [...document.querySelectorAll('#uploadTags input[type="checkbox"]:checked')].map(i => i.dataset.tag);
       form.append('tags', JSON.stringify(selectedTags));
-      const filterValues = {};
-      document.querySelectorAll('#uploadFilters [data-filter-id]').forEach(node => {
-        if (node.type === 'checkbox') filterValues[node.dataset.filterId] = node.checked;
-        else filterValues[node.dataset.filterId] = node.value;
-      });
-      form.append('filterValues', JSON.stringify(filterValues));
+      form.append('filterValues', JSON.stringify(collectUploadFilters()));
       const files = [...filesInput.files];
       files.forEach(file => form.append('files', file));
 
@@ -537,76 +663,71 @@ function bindActions() {
         const elapsedSec = Math.max(0.001, (Date.now() - startedAt) / 1000);
         const speed = loaded / elapsedSec;
         const remainingMs = speed > 0 ? ((total - loaded) / speed) * 1000 : 0;
-        const etaText = total > 0 ? `, осталось ${formatDuration(remainingMs)}` : '';
-        setUploadProgress(true, loaded, total, `${Math.round(pct)}% • ${formatBytes(loaded)} / ${formatBytes(total)}${etaText}`);
+        const etaText = remainingMs > 1000 ? ` · осталось ${formatDuration(remainingMs)}` : '';
+        setUploadProgress(true, loaded, total, `${Math.round(pct)}% · ${formatBytes(loaded)} / ${formatBytes(total)}${etaText}`);
       };
 
       try {
-        await requestWithProgress('/api/admin/upload', form, updateProgress);
-        setUploadProgress(true, totalBytes, totalBytes, 'Загрузка завершена');
-        filesInput.value = '';
-        if (folderInput) folderInput.value = '';
-        notify('Сохранено');
+        const result = await requestWithProgress('/api/admin/upload', form, updateProgress);
+        setUploadProgress(false);
+        notify(`Загружено файлов: ${result.saved || files.length}`);
         await loadAdminData();
+        el('uploadForm').reset();
+        renderUploadArea();
       } catch (err) {
-        setUploadProgress(true, 0, totalBytes, `Ошибка: ${err.message || 'не удалось загрузить'}`);
-        notify(err.message || 'Не удалось загрузить файлы');
-      } finally {
-        setTimeout(() => setUploadProgress(false), 1200);
+        setUploadProgress(false);
+        alert(err.message || 'Ошибка загрузки');
       }
     });
   }
 
-  if (exists('refreshFilesBtn')) {
-    el('refreshFilesBtn').onclick = loadAdminData;
-  }
-
   if (exists('reloadBtn')) {
-    el('reloadBtn').onclick = loadAdminData;
+    el('reloadBtn').onclick = refreshAll;
   }
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const target = e.target;
-    if (!target || target.matches('textarea,[contenteditable="true"]')) return;
-    if (page === 'files' && target.matches('[data-role="tags"]')) {
+  if (exists('catalogCreateForm')) {
+    el('catalogCreateForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      target.closest('.file-item')?.querySelector('[data-role="save"]')?.click();
-    }
-  });
+      const input = el('catalogPathInput');
+      const pathValue = input?.value.trim() || '';
+      if (!pathValue) return;
+      if (!isFolderAllowed(pathValue)) {
+        alert(`Папка должна быть не глубже ${MAX_FOLDER_DEPTH} уровней`);
+        return;
+      }
+      await request('/api/admin/folders', { method: 'POST', body: JSON.stringify({ path: pathValue }) });
+      if (input) input.value = '';
+      await loadAdminData();
+      notify('Каталог создан');
+    });
+  }
+
+  if (exists('catalogSearch')) {
+    el('catalogSearch').addEventListener('input', renderCatalogsPage);
+  }
+
+  if (exists('refreshCatalogsBtn')) {
+    el('refreshCatalogsBtn').onclick = loadAdminData;
+  }
 }
 
-async function init() {
-  renderPageShell();
-  bindNav();
-  bindActions();
+renderPageShell();
+bindActions();
 
+(async () => {
   if (token) {
     try {
       await loadAdminData();
-    } catch (err) {
+      return;
+    } catch {
       token = '';
       localStorage.removeItem('adminToken');
-      const authStatus = el('authStatus');
-      if (authStatus) {
-        authStatus.textContent = 'Не авторизован';
-        authStatus.className = 'status warning';
-      }
-      renderUI();
     }
-  } else {
-    renderUI();
-    const authStatus = el('authStatus');
-    if (authStatus) {
-      authStatus.textContent = 'Не авторизован';
-      authStatus.className = 'status warning';
-    }
-    if (exists('loginBtn')) el('loginBtn').classList.remove('hidden');
-    if (exists('logoutBtn')) el('logoutBtn').classList.add('hidden');
   }
-}
-
-init().catch(err => {
-  console.error(err);
-  alert(err.message || 'Ошибка');
-});
+  const authStatus = el('authStatus');
+  if (authStatus) {
+    authStatus.textContent = 'Не авторизован';
+    authStatus.className = 'status warning';
+  }
+  renderUI();
+})();

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ-панель — Каталоги</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body data-page="catalogs">
+  <script src="/config.js"></script>
+  <div class="app-shell admin-shell">
+    <aside class="sidebar">
+      <div>
+        <h1>Админ-панель</h1>
+        <p class="muted">Фильтры, теги, загрузка и удаление файлов.</p>
+      </div>
+      <nav class="nav-list">
+        <a class="nav-link" data-page="filters" href="/index.html">Редактор фильтров</a>
+        <a class="nav-link" data-page="upload" href="/upload.html">Загрузка файлов</a>
+        <a class="nav-link" data-page="files" href="/files.html">Удаление файлов</a>
+        <a class="nav-link active" data-page="catalogs" href="/catalogs.html">Каталоги</a>
+      </nav>
+      <div class="sidebar-card">
+        <form class="auth-box" id="loginForm" novalidate>
+          <div id="authStatus" class="status warning">Не авторизован</div>
+          <input id="passwordInput" type="password" placeholder="Пароль администратора" />
+          <button id="loginBtn" class="primary" type="submit">Войти</button>
+          <button id="logoutBtn" class="secondary hidden" type="button">Выйти</button>
+        </form>
+      </div>
+    </aside>
+    <main class="content">
+      <header class="page-header">
+        <div>
+          <h2 id="pageTitle">Каталоги</h2>
+          <p id="pageHint" class="muted">Создавайте и удаляйте папки, чтобы удобно раскладывать файлы по каталогам.</p>
+        </div>
+        <button id="reloadBtn" class="secondary" type="button">Обновить</button>
+      </header>
+
+      <section class="card catalog-card">
+        <div class="row space-between">
+          <div>
+            <h3>Создать каталог</h3>
+            <p class="muted small">Например: docs/2026 или clients/acme.</p>
+          </div>
+        </div>
+        <form id="catalogCreateForm" class="catalog-create-form" novalidate>
+          <div>
+            <label>Путь каталога</label>
+            <input id="catalogPathInput" type="text" placeholder="docs/2026" />
+          </div>
+          <button class="primary" type="submit">Создать</button>
+        </form>
+      </section>
+
+      <section class="card catalog-card">
+        <div class="row space-between">
+          <div>
+            <h3>Список каталогов</h3>
+            <p class="muted small">Можно быстро найти папку и удалить её вместе с содержимым.</p>
+          </div>
+          <div class="catalog-search-wrap">
+            <input id="catalogSearch" type="text" placeholder="Поиск по каталогу" />
+          </div>
+        </div>
+        <div id="catalogsList"></div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

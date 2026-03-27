@@ -21,7 +21,7 @@ const request = async (path, body) => {
 };
 
 function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+  return String(str).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])).replace(/'/g, '&#39;');
 }
 
 function formatBytes(bytes) {
@@ -42,6 +42,58 @@ function makeCheckboxChip(text, checked, onChange, dataset = {}) {
   return item;
 }
 
+function renderFilterNode(filter, depth = 0) {
+  const details = document.createElement('details');
+  details.className = 'filter-row';
+  details.open = false;
+  details.style.setProperty('--depth', String(depth));
+
+  const summary = document.createElement('summary');
+  summary.className = 'filter-row__summary';
+  summary.innerHTML = `
+    <span class="filter-row__name" title="${escapeHtml(filter.label)}">${escapeHtml(filter.label)}</span>
+    <span class="filter-row__type muted">${escapeHtml(filter.type)}</span>
+    <span class="filter-row__chev" aria-hidden="true"></span>
+  `;
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'filter-row__body';
+
+  const control = document.createElement('div');
+  control.className = 'filter-row__control';
+
+  if (filter.type === 'dropdown') {
+    const sel = document.createElement('select');
+    sel.dataset.filterId = filter.id;
+    sel.innerHTML = '<option value="">— не выбрано —</option>' + (filter.options || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    sel.onchange = () => {
+      if (sel.value) state.filters[filter.id] = sel.value;
+      else delete state.filters[filter.id];
+    };
+    if (state.filters[filter.id]) sel.value = state.filters[filter.id];
+    control.appendChild(sel);
+  } else {
+    const item = makeCheckboxChip(filter.label, !!state.filters[filter.id], (isChecked) => {
+      if (isChecked) state.filters[filter.id] = true;
+      else delete state.filters[filter.id];
+    }, { filterId: filter.id });
+    control.appendChild(item);
+  }
+
+  body.appendChild(control);
+
+  if (Array.isArray(filter.children) && filter.children.length) {
+    const nested = document.createElement('div');
+    nested.className = 'filter-row__children';
+    filter.children.forEach(child => nested.appendChild(renderFilterNode(child, depth + 1)));
+    body.appendChild(nested);
+  }
+
+  details.appendChild(body);
+  return details;
+}
+
 async function loadConfig() {
   const res = await fetch(`${apiBase}/api/public/config`);
   config = await res.json();
@@ -60,51 +112,19 @@ function renderFilters() {
     return;
   }
 
-  const dropdownFilters = config.filters.filter(filter => filter.type === 'dropdown');
-  const checkboxFilters = config.filters.filter(filter => filter.type === 'checkbox');
+  const shell = document.createElement('div');
+  shell.className = 'filter-grid';
 
-  if (dropdownFilters.length) {
-    const dropdownBox = document.createElement('div');
-    dropdownBox.className = 'filter-stack';
-    dropdownFilters.forEach(filter => {
-      const box = document.createElement('div');
-      box.className = 'filter-row';
-      box.innerHTML = `<label>${escapeHtml(filter.label)}</label>`;
-      const sel = document.createElement('select');
-      sel.dataset.filterId = filter.id;
-      sel.innerHTML = '<option value="">— не выбрано —</option>' + (filter.options || []).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-      sel.onchange = () => {
-        if (sel.value) state.filters[filter.id] = sel.value;
-        else delete state.filters[filter.id];
-      };
-      if (state.filters[filter.id]) sel.value = state.filters[filter.id];
-      box.appendChild(sel);
-      dropdownBox.appendChild(box);
-    });
-    root.appendChild(dropdownBox);
-  }
+  const head = document.createElement('div');
+  head.className = 'filter-grid__head';
+  head.innerHTML = '<div>Название</div><div>Тип</div><div>Значение</div>';
+  shell.appendChild(head);
 
-  if (checkboxFilters.length) {
-    const group = document.createElement('section');
-    group.className = 'checkbox-group-card';
-    const title = document.createElement('div');
-    title.className = 'checkbox-group-card__title';
-    title.textContent = 'Галочки';
-    const box = document.createElement('div');
-    box.className = 'checkbox-group';
-    checkboxFilters.forEach(filter => {
-      const checked = !!state.filters[filter.id];
-      const chip = makeCheckboxChip(filter.label, checked, (isChecked) => {
-        if (isChecked) state.filters[filter.id] = true;
-        else delete state.filters[filter.id];
-      }, { filterId: filter.id });
-      chip.querySelector('input').dataset.filterId = filter.id;
-      box.appendChild(chip);
-    });
-    group.appendChild(title);
-    group.appendChild(box);
-    root.appendChild(group);
-  }
+  const body = document.createElement('div');
+  body.className = 'filter-grid__body';
+  (config.filters || []).forEach(filter => body.appendChild(renderFilterNode(filter)));
+  shell.appendChild(body);
+  root.appendChild(shell);
 
   if (config.tags.length) {
     const tagBox = document.createElement('section');
@@ -133,12 +153,26 @@ function renderFilters() {
 
 function renderFolders() {
   const root = el('foldersTree');
+  const select = el('folderSelect');
   root.innerHTML = '';
+
+  if (select) {
+    const current = state.folder || '';
+    select.innerHTML = '<option value="">Все папки</option>';
+    for (const folder of config.folders || []) {
+      const opt = document.createElement('option');
+      opt.value = folder;
+      opt.textContent = folder;
+      select.appendChild(opt);
+    }
+    select.value = current;
+  }
 
   const allBtn = document.createElement('button');
   allBtn.className = `folder-item ${!state.folder ? 'active' : ''}`;
   allBtn.type = 'button';
   allBtn.textContent = 'Все папки';
+  allBtn.dataset.folder = '';
   allBtn.onclick = () => { state.folder = ''; setFolderUI(); applySearch(); };
   root.appendChild(allBtn);
 
@@ -153,8 +187,10 @@ function renderFolders() {
       const btn = document.createElement('button');
       btn.className = `folder-item ${state.folder === folder ? 'active' : ''}`;
       btn.type = 'button';
+      btn.dataset.folder = folder;
       btn.textContent = folder;
       btn.title = folder;
+      btn.style.paddingLeft = `${12 + folder.split('/').length * 12}px`;
       btn.onclick = () => { state.folder = folder; setFolderUI(); applySearch(); };
       root.appendChild(btn);
     }
@@ -164,8 +200,8 @@ function renderFolders() {
 
 function setFolderUI() {
   const select = el('folderSelect');
-  select.value = state.folder;
-  document.querySelectorAll('.folder-item').forEach(btn => btn.classList.toggle('active', btn.textContent === (state.folder || 'Все папки')));
+  if (select) select.value = state.folder;
+  document.querySelectorAll('.folder-item').forEach(btn => btn.classList.toggle('active', btn.dataset.folder === (state.folder || '')));
 }
 
 function resetFilters() {
@@ -242,7 +278,7 @@ function renderResults(files) {
 }
 
 async function applySearch() {
-  el('folderSelect').value = state.folder;
+  if (el('folderSelect')) el('folderSelect').value = state.folder;
   const data = await request('/api/public/search', {
     search: state.search,
     folder: state.folder,
@@ -257,8 +293,12 @@ async function applySearch() {
 }
 
 function bindEvents() {
-  el('searchInput').addEventListener('input', (e) => { state.search = e.target.value; });
-  el('folderSelect').addEventListener('change', (e) => { state.folder = e.target.value; renderFolders(); });
+  el('searchInput')?.addEventListener('input', (e) => { state.search = e.target.value; });
+  el('folderSelect')?.addEventListener('change', (e) => {
+    state.folder = e.target.value;
+    renderFolders();
+    applySearch();
+  });
   el('searchForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     applySearch();
